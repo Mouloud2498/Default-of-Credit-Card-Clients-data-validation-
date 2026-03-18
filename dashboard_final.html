@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline Zéro Défaut — Tableau de Bord Final</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #222535;
+  --border: #2e3347;
+  --text: #e8eaf0;
+  --muted: #6b7280;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --blue: #60a5fa;
+  --purple: #a78bfa;
+  --orange: #fb923c;
+  --teal: #2dd4bf;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.6; }
+
+header {
+  background: linear-gradient(135deg, #1a1d27, #1e2235);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex; align-items: center; gap: 16px;
+  position: sticky; top: 0; z-index: 100;
+}
+.logo { width: 40px; height: 40px; background: linear-gradient(135deg, #60a5fa, #a78bfa); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+header h1 { font-size: 17px; font-weight: 700; }
+header p { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+.winner-badge { margin-left: auto; background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.3); color: var(--green); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+
+nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; overflow-x: auto; }
+nav button { background: none; border: none; cursor: pointer; color: var(--muted); font: 13px/1 'Inter', sans-serif; padding: 14px 18px; border-bottom: 2px solid transparent; transition: all .2s; white-space: nowrap; }
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+.container { max-width: 1400px; margin: 0 auto; padding: 28px 32px; }
+.page { display: none; }
+.page.active { display: block; }
+
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; }
+.kpi::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.kpi.green::before { background: var(--green); }
+.kpi.blue::before  { background: var(--blue); }
+.kpi.yellow::before{ background: var(--yellow); }
+.kpi.red::before   { background: var(--red); }
+.kpi.purple::before{ background: var(--purple); }
+.kpi label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; display: block; margin-bottom: 8px; }
+.kpi .val { font-size: 26px; font-weight: 700; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+.kpi .sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+.card-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 16px; }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
+@media(max-width:900px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 9px 12px; color: var(--muted); font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); }
+td { padding: 9px 12px; border-bottom: 1px solid rgba(46,51,71,.4); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.02); }
+.mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+.pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; }
+.pill-green { background: rgba(52,211,153,.12); color: var(--green); }
+.pill-blue  { background: rgba(96,165,250,.12); color: var(--blue); }
+.pill-yellow{ background: rgba(251,191,36,.12);  color: var(--yellow); }
+.pill-red   { background: rgba(248,113,113,.12); color: var(--red); }
+.pill-purple{ background: rgba(167,139,250,.12); color: var(--purple); }
+
+.progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.progress-label { width: 120px; font-size: 11px; color: var(--muted); flex-shrink: 0; text-align: right; }
+.progress-bar { flex: 1; height: 7px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 4px; }
+.progress-val { width: 50px; font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+
+.cm-wrap { display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+.cm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.cm-cell { padding: 14px 10px; border-radius: 6px; text-align: center; }
+.cm-cell .num { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.cm-cell .lbl { font-size: 9px; color: var(--muted); margin-top: 3px; }
+.cm-tn { background: rgba(52,211,153,.1);  border: 1px solid rgba(52,211,153,.2); }
+.cm-fp { background: rgba(251,191,36,.1);  border: 1px solid rgba(251,191,36,.2); }
+.cm-fn { background: rgba(248,113,113,.18);border: 1px solid rgba(248,113,113,.35); }
+.cm-tp { background: rgba(96,165,250,.12); border: 1px solid rgba(96,165,250,.25); }
+
+.model-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.mtab { padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--muted); cursor: pointer; font: 12px/1 'Inter', sans-serif; transition: all .2s; }
+.mtab.active { background: rgba(96,165,250,.1); border-color: rgba(96,165,250,.3); color: var(--blue); }
+.mtab.winner { background: rgba(52,211,153,.08); border-color: rgba(52,211,153,.25); color: var(--green); }
+.mtab.winner.active { background: rgba(52,211,153,.15); border-color: rgba(52,211,153,.5); }
+
+.drift-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid rgba(46,51,71,.4); }
+.drift-row:last-child { border-bottom: none; }
+.drift-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+.drift-icon.alert { background: rgba(248,113,113,.12); color: var(--red); }
+.drift-icon.ok    { background: rgba(52,211,153,.12);  color: var(--green); }
+
+.alert-box { background: rgba(248,113,113,.07); border: 1px solid rgba(248,113,113,.2); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+
+h2 { font-size: 20px; font-weight: 700; margin-bottom: 5px; }
+.section-desc { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+canvas { max-height: 300px; }
+
+footer { text-align: center; padding: 28px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--border); margin-top: 36px; font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏦</div>
+  <div>
+    <h1>Pipeline de Score de Crédit — Zéro Défaut</h1>
+    <p>UCI Credit Card Default · 30 000 clients · 30 features · Gradient Boosting seuil=0.13</p>
+  </div>
+  <div class="winner-badge">★ PIPELINE COMPLET</div>
+</header>
+
+<nav>
+  <button class="active" onclick="showPage('overview',this)">Vue d'ensemble</button>
+  <button onclick="showPage('qc',this)">Contrôle Qualité</button>
+  <button onclick="showPage('models',this)">Comparaison Modèles</button>
+  <button onclick="showPage('decision',this)">Décision Finale</button>
+  <button onclick="showPage('fairness',this)">Équité</button>
+  <button onclick="showPage('drift',this)">Drift & Monitoring</button>
+  <button onclick="showPage('report',this)">Rapport Final</button>
+</nav>
+
+<div class="container">
+
+<!-- ══════════════════════ OVERVIEW ══════════════════════ -->
+<div id="page-overview" class="page active">
+  <div style="margin-bottom:20px"><h2>Vue d'ensemble du Pipeline</h2><p class="section-desc">4 phases · 3 modèles comparés · 17 tests unitaires · Modèle retenu : Gradient Boosting (seuil=0.13)</p></div>
+
+  <div class="kpi-grid">
+    <div class="kpi green"><label>AUC Test</label><div class="val" style="color:var(--green)">0.784</div><div class="sub">Gradient Boosting</div></div>
+    <div class="kpi green"><label>Recall Test</label><div class="val" style="color:var(--green)">83.1%</div><div class="sub">Défauts détectés</div></div>
+    <div class="kpi blue"><label>Seuil optimal</label><div class="val" style="color:var(--blue)">0.13</div><div class="sub">vs 0.50 par défaut</div></div>
+    <div class="kpi yellow"><label>FN manqués</label><div class="val" style="color:var(--yellow)">224</div><div class="sub">sur 1 327 défauts</div></div>
+    <div class="kpi red"><label>Coût métier</label><div class="val" style="color:var(--red)">3 349</div><div class="sub">FN×5 + FP×1</div></div>
+    <div class="kpi purple"><label>Tests unitaires</label><div class="val" style="color:var(--purple)">17/17</div><div class="sub">100% passés</div></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">AUC-ROC — Train / Val / Test par modèle</div>
+      <canvas id="chartAUC"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Coût Métier — Seuil par défaut vs Seuil optimal</div>
+      <canvas id="chartCost"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Résumé des 4 phases</div>
+    <table>
+      <thead><tr><th>Phase</th><th>Contenu</th><th>Résultat clé</th><th>Statut</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Phase 1</strong></td><td>Contrôle Qualité des Données</td><td>0 manquant · 0 doublon · 5 violations de schéma mineures</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td><strong>Phase 2</strong></td><td>Ingénierie des Features</td><td>7 features dérivées · 17/17 tests · 0 fuite de données</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td><strong>Phase 3</strong></td><td>Validation du Modèle</td><td>GB retenu AUC=0.784, Recall=83%, Coût=3 349</td><td><span class="pill pill-green">PASS</span></td></tr>
+        <tr><td><strong>Phase 4</strong></td><td>Drift & Monitoring</td><td>5/5 features driftent sous choc économique · dégradation=1.15 pts</td><td><span class="pill pill-yellow">ALERTE</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════ QC ══════════════════════ -->
+<div id="page-qc" class="page">
+  <div style="margin-bottom:20px"><h2>Contrôle Qualité des Données</h2><p class="section-desc">Phase 1 — Profilage, validation de schéma et détection des outliers</p></div>
+  <div class="kpi-grid">
+    <div class="kpi green"><label>Valeurs manquantes</label><div class="val" style="color:var(--green)">0</div><div class="sub">Sur 750 000 cellules</div></div>
+    <div class="kpi green"><label>Doublons</label><div class="val" style="color:var(--green)">0</div></div>
+    <div class="kpi yellow"><label>Violations schéma</label><div class="val" style="color:var(--yellow)">5</div><div class="sub">Toutes LOW sévérité</div></div>
+    <div class="kpi blue"><label>Déséquilibre</label><div class="val" style="color:var(--blue)">3.5:1</div><div class="sub">Non-défaut / défaut</div></div>
+    <div class="kpi purple"><label>Tests unitaires</label><div class="val" style="color:var(--purple)">17/17</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Violations de Schéma Détectées</div>
+      <table>
+        <thead><tr><th>Sévérité</th><th>Colonne</th><th>Règle violée</th><th>Lignes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill pill-yellow">LOW</span></td><td class="mono">EDUCATION</td><td>Codes 0, 5, 6 non documentés</td><td class="mono">345</td></tr>
+          <tr><td><span class="pill pill-yellow">LOW</span></td><td class="mono">MARRIAGE</td><td>Code 0 non documenté</td><td class="mono">54</td></tr>
+          <tr><td><span class="pill pill-green">OK</span></td><td class="mono">AGE</td><td>[18, 100]</td><td class="mono">0</td></tr>
+          <tr><td><span class="pill pill-green">OK</span></td><td class="mono">LIMIT_BAL</td><td>>= 0</td><td class="mono">0</td></tr>
+          <tr><td><span class="pill pill-green">OK</span></td><td class="mono">DEFAULT</td><td>∈ {0, 1}</td><td class="mono">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Distribution de la Variable Cible</div>
+      <canvas id="chartTarget"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Outliers détectés — Z-score vs IQR (top features)</div>
+    <canvas id="chartOutliers"></canvas>
+  </div>
+</div>
+
+<!-- ══════════════════════ MODELS ══════════════════════ -->
+<div id="page-models" class="page">
+  <div style="margin-bottom:20px"><h2>Comparaison des 3 Modèles</h2><p class="section-desc">Cross-validation 5 folds + métriques Train / Val / Test + seuil par défaut 0.50</p></div>
+  <div class="card">
+    <div class="card-title">Tableau complet — Train / Val / Test (seuil 0.50)</div>
+    <table>
+      <thead><tr><th>Modèle</th><th>Split</th><th>AUC</th><th>F1</th><th>Recall</th><th>Precision</th><th>Coût métier</th><th>Surapprentissage</th></tr></thead>
+      <tbody id="table-models"></tbody>
+    </table>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Cross-Validation AUC (5 folds) — moyenne ± écart-type</div>
+      <canvas id="chartCV"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">Détection du Surapprentissage — AUC Train vs Test</div>
+      <canvas id="chartOverfit"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ DECISION ══════════════════════ -->
+<div id="page-decision" class="page">
+  <div style="margin-bottom:20px"><h2>Optimisation du Seuil et Décision Finale</h2><p class="section-desc">Chaque modèle est évalué à son seuil optimal — le vrai gagnant se révèle ici</p></div>
+
+  <div class="model-tabs">
+    <button class="mtab winner active" onclick="showModel('GB',this)">Gradient Boosting ★ (seuil=0.13)</button>
+    <button class="mtab" onclick="showModel('RF',this)">Random Forest (seuil=0.37)</button>
+    <button class="mtab" onclick="showModel('LR',this)">Logistic Regression (seuil=0.46)</button>
+  </div>
+
+  <div id="model-detail-panel"></div>
+
+  <div class="card">
+    <div class="card-title">Tableau de Décision Final — Les 3 Modèles à Seuil Optimal</div>
+    <table>
+      <thead><tr><th>Critère</th><th>Logistic Reg. (0.46)</th><th>Random Forest (0.37)</th><th>Gradient Boosting (0.13) ★</th></tr></thead>
+      <tbody>
+        <tr><td>AUC-ROC</td><td class="mono">0.725</td><td class="mono">0.780</td><td class="mono" style="color:var(--green);font-weight:700">0.784</td></tr>
+        <tr><td>Recall</td><td class="mono">0.671</td><td class="mono">0.725</td><td class="mono" style="color:var(--green);font-weight:700">0.831</td></tr>
+        <tr><td>Précision</td><td class="mono">0.382</td><td class="mono">0.380</td><td class="mono">0.331</td></tr>
+        <tr><td>F1-Score</td><td class="mono">0.487</td><td class="mono" style="color:var(--blue)">0.499</td><td class="mono">0.474</td></tr>
+        <tr><td>FN — défauts manqués</td><td class="mono">436</td><td class="mono">365</td><td class="mono" style="color:var(--green);font-weight:700">224</td></tr>
+        <tr><td>Coût métier</td><td class="mono">3 624</td><td class="mono">3 393</td><td class="mono" style="color:var(--green);font-weight:700">3 349</td></tr>
+        <tr><td>Surapprentissage</td><td><span class="pill pill-green">Aucun</span></td><td><span class="pill pill-yellow">Modéré</span></td><td><span class="pill pill-yellow">Modéré</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════ FAIRNESS ══════════════════════ -->
+<div id="page-fairness" class="page">
+  <div style="margin-bottom:20px"><h2>Analyse d'Équité (Fairness)</h2><p class="section-desc">Gradient Boosting | Seuil=0.13 — Vérification des biais par genre et tranche d'âge</p></div>
+  <div class="grid2">
+    <div class="card"><div class="card-title">Équité par Genre</div><canvas id="chartFG"></canvas></div>
+    <div class="card"><div class="card-title">Équité par Tranche d'Âge</div><canvas id="chartFA"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Métriques détaillées par groupe</div>
+    <table>
+      <thead><tr><th>Groupe</th><th>Effectif</th><th>Recall</th><th>Precision</th><th>FNR</th><th>FPR</th><th>Coût</th></tr></thead>
+      <tbody>
+        <tr><td>Homme</td><td class="mono">2 402</td><td class="mono">0.848</td><td class="mono">0.340</td><td class="mono">0.152</td><td class="mono">0.501</td><td class="mono">1 348</td></tr>
+        <tr><td>Femme</td><td class="mono">3 598</td><td class="mono">0.819</td><td class="mono">0.324</td><td class="mono">0.181</td><td class="mono">0.461</td><td class="mono">2 001</td></tr>
+        <tr style="border-top:1px solid var(--border)"><td>Jeune (≤30)</td><td class="mono">2 181</td><td class="mono">0.839</td><td class="mono">0.324</td><td class="mono">0.161</td><td class="mono">0.492</td><td class="mono">1 222</td></tr>
+        <tr><td>Adulte (31-45)</td><td class="mono">2 853</td><td class="mono">0.810</td><td class="mono">0.328</td><td class="mono">0.190</td><td class="mono">0.445</td><td class="mono">1 576</td></tr>
+        <tr><td>Senior (>45)</td><td class="mono">966</td><td class="mono" style="color:var(--green)">0.869</td><td class="mono">0.352</td><td class="mono" style="color:var(--green)">0.131</td><td class="mono">0.542</td><td class="mono">551</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════ DRIFT ══════════════════════ -->
+<div id="page-drift" class="page">
+  <div style="margin-bottom:20px"><h2>Drift & Monitoring Post-Déploiement</h2><p class="section-desc">Simulation d'un choc économique — inflation +40%, crédit -30%, remboursements -20%</p></div>
+  <div class="alert-box">🚨 <strong>5/5 features driftent</strong> sous choc économique simulé — dégradation AUC = 1.15 pts (sous le seuil d'alerte de 2 pts)</div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Résultats Test KS par feature</div>
+      <div id="drift-rows"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Statistique KS — Intensité du drift</div>
+      <canvas id="chartKS"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Impact sur les performances du modèle</div>
+    <div class="grid2" style="margin-bottom:0">
+      <div>
+        <div class="progress-row"><span class="progress-label">AUC Référence</span><div class="progress-bar"><div class="progress-fill" style="width:78.43%;background:var(--green)"></div></div><span class="progress-val">0.7843</span></div>
+        <div class="progress-row"><span class="progress-label">AUC Post-Drift</span><div class="progress-bar"><div class="progress-fill" style="width:77.27%;background:var(--yellow)"></div></div><span class="progress-val">0.7727</span></div>
+        <div class="progress-row"><span class="progress-label">Dégradation</span><div class="progress-bar"><div class="progress-fill" style="width:11.5%;background:var(--blue)"></div></div><span class="progress-val">1.15 pts</span></div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);padding-top:8px">
+        <p style="margin-bottom:10px">Seuil d'alerte fixé à <strong style="color:var(--yellow)">2.0 pts</strong></p>
+        <p style="margin-bottom:10px">La dégradation de <strong style="color:var(--green)">1.15 pts</strong> reste en dessous — le modèle est robuste aux chocs modérés.</p>
+        <p>En production, si ce seuil est franchi, un réentraînement d'urgence est déclenché automatiquement.</p>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Seuils d'Alerte et Plan de Monitoring</div>
+    <table>
+      <thead><tr><th>Indicateur</th><th>Seuil d'alerte</th><th>Action déclenchée</th><th>Fréquence</th></tr></thead>
+      <tbody>
+        <tr><td>AUC glissant 30j</td><td class="mono">&lt; 0.75</td><td>Réentraînement d'urgence</td><td>Quotidienne</td></tr>
+        <tr><td>Recall observé</td><td class="mono">&lt; 0.70</td><td>Révision du seuil</td><td>Hebdomadaire</td></tr>
+        <tr><td>Test KS (p-value)</td><td class="mono">&lt; 0.05</td><td>Rapport drift automatique</td><td>Hebdomadaire</td></tr>
+        <tr><td>Drift simultané</td><td class="mono">&gt;= 3 features</td><td>Gel des décisions + audit humain</td><td>Hebdomadaire</td></tr>
+        <tr><td>Coût métier mensuel</td><td class="mono">&gt; 5 000</td><td>Révision des paramètres</td><td>Mensuelle</td></tr>
+        <tr><td>Audit équité</td><td>Écart FNR &gt; 5 pts</td><td>Recalibration par groupe</td><td>Trimestrielle</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════ REPORT ══════════════════════ -->
+<div id="page-report" class="page">
+  <div style="margin-bottom:20px"><h2>Rapport de Qualité Final</h2><p class="section-desc">Fiche technique officielle du modèle de production</p></div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Identité du Modèle</div>
+      <table>
+        <tr><th>Champ</th><th>Valeur</th></tr>
+        <tr><td>Algorithme</td><td class="mono">GradientBoostingClassifier</td></tr>
+        <tr><td>Paramètres</td><td class="mono">n_est=200, lr=0.05, depth=4</td></tr>
+        <tr><td>Seuil de décision</td><td class="mono" style="color:var(--green)">0.13</td></tr>
+        <tr><td>Features</td><td class="mono">30 (23 + 7 dérivées)</td></tr>
+        <tr><td>Dataset</td><td>UCI Credit Card Default</td></tr>
+        <tr><td>Split</td><td class="mono">70% train / 10% val / 20% test</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Métriques Finales (seuil=0.13)</div>
+      <table>
+        <tr><th>Métrique</th><th>Valeur</th><th>Interprétation</th></tr>
+        <tr><td>AUC-ROC</td><td class="mono" style="color:var(--green)">0.7843</td><td>Discrimination solide</td></tr>
+        <tr><td>Recall</td><td class="mono" style="color:var(--green)">0.8312</td><td>83% des défauts détectés</td></tr>
+        <tr><td>Précision</td><td class="mono">0.3310</td><td>1 alarme sur 3 est vraie</td></tr>
+        <tr><td>F1-Score</td><td class="mono">0.4735</td><td>Équilibre recall/precision</td></tr>
+        <tr><td>FN manqués</td><td class="mono" style="color:var(--yellow)">224 / 1327</td><td>17% de défauts manqués</td></tr>
+        <tr><td>Coût métier</td><td class="mono" style="color:var(--green)">3 349</td><td>Le plus bas des 3 modèles</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Limites Connues du Modèle</div>
+    <table>
+      <thead><tr><th>#</th><th>Limite</th><th>Impact</th><th>Statut</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Données taïwanaises 2005-2006 — généralisation géographique non garantie</td><td>Modéré</td><td><span class="pill pill-yellow">À valider</span></td></tr>
+        <tr><td>2</td><td>Déséquilibre 3.5:1 — Précision limitée à ~33% avec seuil 0.13</td><td>Acceptable</td><td><span class="pill pill-blue">Corrigé/seuil</span></td></tr>
+        <tr><td>3</td><td>FNR légèrement plus élevé chez les femmes et les adultes 31-45 ans</td><td>Faible</td><td><span class="pill pill-yellow">Surveillance</span></td></tr>
+        <tr><td>4</td><td>Absence de variables macro (taux directeur, inflation, chômage)</td><td>Modéré</td><td><span class="pill pill-red">Non couvert</span></td></tr>
+        <tr><td>5</td><td>EDUCATION/MARRIAGE — codes 0, 5, 6 remappés vers "autre"</td><td>Faible</td><td><span class="pill pill-green">Traité</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <div class="card-title">Importance des Features — Top 15 (Random Forest)</div>
+    <canvas id="chartFI" style="max-height:360px"></canvas>
+  </div>
+</div>
+
+</div><!-- /container -->
+
+<footer>Pipeline Zéro Défaut · UCI Credit Card Default · Taïwan 2005–2006 · Gradient Boosting seuil=0.13</footer>
+
+<script>
+Chart.defaults.color = '#6b7280';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+
+const C = {
+  blue: 'rgba(96,165,250,0.85)', blueD: 'rgba(96,165,250,0.25)',
+  green: 'rgba(52,211,153,0.85)', greenD: 'rgba(52,211,153,0.25)',
+  yellow: 'rgba(251,191,36,0.85)', yellowD: 'rgba(251,191,36,0.25)',
+  red: 'rgba(248,113,113,0.85)', redD: 'rgba(248,113,113,0.25)',
+  purple: 'rgba(167,139,250,0.85)',
+};
+
+const grid = { color: 'rgba(46,51,71,0.6)' };
+
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── DATA ─────────────────────────────────────────────────────────
+const DATA = {
+  models: {
+    'Logistic Regression': {
+      thresh: 0.46,
+      train: {auc:0.7457, f1:0.5198, recall:0.6538, precision:0.4314, cost:12043, tn:12317, fp:4038, fn:1600, tp:3045},
+      val:   {auc:0.7351, f1:0.5114, recall:0.6416, precision:0.4251, cost:1766,  tn:1753,  fp:583,  fn:235,  tp:429},
+      test:  {auc:0.7251, f1:0.5035, recall:0.6262, precision:0.4210, cost:3623,  tn:3229,  fp:1444, fn:436,  tp:891}
+    },
+    'Random Forest': {
+      thresh: 0.37,
+      train: {auc:0.8723, f1:0.6129, recall:0.6807, precision:0.5573, cost:9927,  tn:15024, fp:331,  fn:644,  tp:1001},
+      val:   {auc:0.7934, f1:0.5340, recall:0.5919, precision:0.4864, cost:1770,  tn:2150,  fp:183,  fn:273,  tp:394},
+      test:  {auc:0.7797, f1:0.5411, recall:0.5953, precision:0.4959, cost:3488,  tn:3105,  fp:1568, fn:365,  tp:962}
+    },
+    'Gradient Boosting': {
+      thresh: 0.13,
+      train: {auc:0.8383, f1:0.5344, recall:0.4177, precision:0.7419, cost:14200, tn:15932, fp:423,  fn:2715, tp:1930},
+      val:   {auc:0.7896, f1:0.4807, recall:0.3750, precision:0.6694, cost:2198,  tn:2256,  fp:80,   fn:418,  tp:246},
+      test:  {auc:0.7843, f1:0.4735, recall:0.8312, precision:0.3310, cost:3349,  tn:2444,  fp:2229, fn:224,  tp:1103}
+    }
+  },
+  cv: {
+    'Logistic Regression': {auc:[0.7440,0.0078], f1:[0.5181,0.0070], recall:[0.6527,0.0148], precision:[0.4295,0.0037]},
+    'Random Forest':       {auc:[0.7846,0.0048], f1:[0.5469,0.0107], recall:[0.6071,0.0153], precision:[0.4977,0.0094]},
+    'Gradient Boosting':   {auc:[0.7863,0.0055], f1:[0.4879,0.0126], recall:[0.3834,0.0127], precision:[0.6712,0.0197]}
+  },
+  drift: {
+    LIMIT_BAL:  {ks:0.186,  pv:'4.29e-91', pct:-30.0, detected:true},
+    BILL_AMT1:  {ks:0.103,  pv:'5.00e-28', pct:+40.0, detected:true},
+    PAY_AMT1:   {ks:0.115,  pv:'1.17e-34', pct:-20.0, detected:true},
+    AGE:        {ks:0.169,  pv:'1.69e-75', pct:+8.4,  detected:true},
+    UTIL_RATIO: {ks:0.378,  pv:'0.00e+00', pct:+100.0,detected:true}
+  },
+  fi: {
+    MAX_PAY_DELAY:0.1348, PAY_0:0.1312, AVG_PAY_DELAY:0.1000,
+    PAY_2:0.0641, PAY_3:0.0403, UTIL_RATIO:0.0396,
+    TOTAL_PAY:0.0361, LIMIT_BAL:0.0339, REPAY_RATIO:0.0298,
+    BILL_AMT1:0.0297, PAY_AMT2:0.0290, TOTAL_BILL:0.0284,
+    PAY_AMT1:0.0269, PAY_5:0.0244, PAY_AMT3:0.0241
+  }
+};
+
+// ── OVERVIEW ─────────────────────────────────────────────────────
+new Chart(document.getElementById('chartAUC'), {
+  type: 'bar',
+  data: {
+    labels: ['Logistic Reg.','Random Forest','Grad. Boosting'],
+    datasets: [
+      {label:'Train', data:[0.7457,0.8723,0.8383], backgroundColor:C.blueD, borderColor:C.blue, borderWidth:2},
+      {label:'Val',   data:[0.7351,0.7934,0.7896], backgroundColor:C.yellowD, borderColor:C.yellow, borderWidth:2},
+      {label:'Test',  data:[0.7251,0.7797,0.7843], backgroundColor:C.greenD, borderColor:C.green, borderWidth:2}
+    ]
+  },
+  options: { responsive:true, scales:{y:{min:0.6,max:1.0,grid},x:{grid}}, plugins:{legend:{position:'bottom'}} }
+});
+
+new Chart(document.getElementById('chartCost'), {
+  type: 'bar',
+  data: {
+    labels: ['Logistic Reg.','Random Forest','Grad. Boosting'],
+    datasets: [
+      {label:'Seuil 0.50', data:[3623,3488,4475], backgroundColor:C.redD, borderColor:C.red, borderWidth:2},
+      {label:'Seuil optimal', data:[3624,3393,3349], backgroundColor:C.greenD, borderColor:C.green, borderWidth:2}
+    ]
+  },
+  options: { responsive:true, scales:{y:{grid},x:{grid}}, plugins:{legend:{position:'bottom'}} }
+});
+
+// ── QC ───────────────────────────────────────────────────────────
+new Chart(document.getElementById('chartTarget'), {
+  type: 'doughnut',
+  data: {labels:['Non-défaut (77.9%)','Défaut (22.1%)'],datasets:[{data:[23364,6636],backgroundColor:[C.blue,C.red],hoverOffset:4}]},
+  options: {responsive:true,plugins:{legend:{position:'bottom'}}}
+});
+
+new Chart(document.getElementById('chartOutliers'), {
+  type:'bar',
+  data:{
+    labels:['LIMIT_BAL','AGE','BILL_AMT1','BILL_AMT2','PAY_AMT1','PAY_AMT4'],
+    datasets:[
+      {label:'Z-score >3σ', data:[248,141,686,670,390,396], backgroundColor:C.blue},
+      {label:'IQR 1.5×',    data:[167,272,2400,2395,2745,2994], backgroundColor:C.orange}
+    ]
+  },
+  options:{responsive:true,scales:{y:{grid},x:{grid}},plugins:{legend:{position:'bottom'}}}
+});
+
+// ── MODELS TABLE ─────────────────────────────────────────────────
+const tbody = document.getElementById('table-models');
+const overfitStatus = {'Logistic Regression':'OK (2.1 pts)','Random Forest':'Modéré (9.3 pts)','Gradient Boosting':'Modéré (5.4 pts)'};
+Object.entries(DATA.models).forEach(([name,d]) => {
+  ['train','val','test'].forEach(s => {
+    const m = d[s];
+    const isTest = s==='test';
+    const color = isTest ? 'style="font-weight:600"' : '';
+    tbody.innerHTML += `<tr ${color}>
+      <td>${name}${isTest?' ★':''}</td>
+      <td style="text-transform:capitalize">${s}</td>
+      <td class="mono">${m.auc}</td><td class="mono">${m.f1}</td>
+      <td class="mono">${m.recall}</td><td class="mono">${m.precision}</td>
+      <td class="mono">${m.cost.toLocaleString()}</td>
+      <td>${isTest?overfitStatus[name]:''}</td>
+    </tr>`;
+  });
+});
+
+new Chart(document.getElementById('chartCV'), {
+  type:'bar',
+  data:{
+    labels:['Logistic Reg.','Random Forest','Grad. Boosting'],
+    datasets:[{label:'AUC CV moyen',data:[0.7440,0.7846,0.7863],backgroundColor:[C.yellow,C.blue,C.green],borderRadius:6}]
+  },
+  options:{responsive:true,scales:{y:{min:0.6,max:0.85,grid},x:{grid}},plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>{const n=['Logistic Reg.','Random Forest','Grad. Boosting'][ctx.dataIndex];const cv=Object.values(DATA.cv)[ctx.dataIndex];return `AUC: ${ctx.parsed.y.toFixed(4)} ± ${cv.auc[1].toFixed(4)}`}}}}}
+});
+
+new Chart(document.getElementById('chartOverfit'), {
+  type:'bar',
+  data:{
+    labels:['Logistic Reg.','Random Forest','Grad. Boosting'],
+    datasets:[
+      {label:'Train AUC',data:[0.7457,0.8723,0.8383],backgroundColor:C.blueD,borderColor:C.blue,borderWidth:2},
+      {label:'Test AUC', data:[0.7251,0.7797,0.7843],backgroundColor:C.greenD,borderColor:C.green,borderWidth:2}
+    ]
+  },
+  options:{responsive:true,scales:{y:{min:0.6,grid},x:{grid}},plugins:{legend:{position:'bottom'}}}
+});
+
+// ── MODEL DETAIL ─────────────────────────────────────────────────
+function showModel(code, btn) {
+  document.querySelectorAll('.mtab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const map = {GB:'Gradient Boosting',RF:'Random Forest',LR:'Logistic Regression'};
+  renderModel(map[code]);
+}
+
+function renderModel(name) {
+  const d = DATA.models[name];
+  const cv = DATA.cv[name];
+  const m = d.test;
+  document.getElementById('model-detail-panel').innerHTML = `
+  <div class="grid3" style="margin-bottom:18px">
+    <div class="card"><div class="card-title">Matrice de Confusion — Test (seuil=${d.thresh})</div>
+      <div class="cm-wrap">
+        <div class="cm-grid">
+          <div class="cm-cell cm-tn"><div class="num">${m.tn.toLocaleString()}</div><div class="lbl">Vrais Négatifs</div></div>
+          <div class="cm-cell cm-fp"><div class="num">${m.fp.toLocaleString()}</div><div class="lbl">Faux Positifs</div></div>
+          <div class="cm-cell cm-fn"><div class="num">${m.fn.toLocaleString()}</div><div class="lbl">Faux Négatifs ⚠️</div></div>
+          <div class="cm-cell cm-tp"><div class="num">${m.tp.toLocaleString()}</div><div class="lbl">Vrais Positifs</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Performances Test</div>
+      ${[['Recall',m.recall,'var(--green)'],['Precision',m.precision,'var(--blue)'],['F1',m.f1,'var(--purple)'],['AUC',m.auc,'var(--orange)']].map(([l,v,c])=>`
+        <div class="progress-row"><span class="progress-label">${l}</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:${v*100}%;background:${c}"></div></div>
+        <span class="progress-val">${v}</span></div>`).join('')}
+      <p style="font-size:11px;color:var(--muted);margin-top:12px">Coût métier : <strong style="color:var(--text)">${m.cost.toLocaleString()}</strong> (FN=${m.fn}×5 + FP=${m.fp})</p>
+    </div>
+    <div class="card"><div class="card-title">Cross-Validation (5 folds)</div>
+      ${Object.entries(cv).map(([k,[mean,std]])=>`
+        <div class="progress-row"><span class="progress-label">${k}</span>
+        <div class="progress-bar"><div class="progress-fill" style="width:${mean*100}%;background:var(--blue)"></div></div>
+        <span class="progress-val" style="font-size:10px">${mean.toFixed(3)}<span style="color:var(--muted)"> ±${std.toFixed(3)}</span></span></div>`).join('')}
+    </div>
+  </div>`;
+}
+renderModel('Gradient Boosting');
+
+// ── FAIRNESS ─────────────────────────────────────────────────────
+function fairChart(id, labels, recalls, fprs, fnrs) {
+  new Chart(document.getElementById(id), {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Recall',data:recalls,backgroundColor:C.blue,borderRadius:4},
+      {label:'FPR',   data:fprs,   backgroundColor:C.yellow,borderRadius:4},
+      {label:'FNR',   data:fnrs,   backgroundColor:C.red,borderRadius:4}
+    ]},
+    options:{responsive:true,scales:{y:{min:0,max:1,grid},x:{grid}},plugins:{legend:{position:'bottom'}}}
+  });
+}
+fairChart('chartFG',['Homme','Femme'],[0.848,0.819],[0.501,0.461],[0.152,0.181]);
+fairChart('chartFA',['Jeune (≤30)','Adulte (31-45)','Senior (>45)'],[0.839,0.810,0.869],[0.492,0.445,0.542],[0.161,0.190,0.131]);
+
+// ── DRIFT ─────────────────────────────────────────────────────────
+const driftContainer = document.getElementById('drift-rows');
+Object.entries(DATA.drift).forEach(([col,d]) => {
+  driftContainer.innerHTML += `<div class="drift-row">
+    <div class="drift-icon alert">🚨</div>
+    <div style="flex:1;font-family:'JetBrains Mono',monospace;font-size:12px">${col}</div>
+    <div style="font-size:12px;color:var(--muted)">KS=${d.ks}</div>
+    <div style="font-size:12px;color:${d.pct>0?'var(--red)':'var(--green)'};font-family:'JetBrains Mono',monospace">${d.pct>0?'+':''}${d.pct}%</div>
+  </div>`;
+});
+
+new Chart(document.getElementById('chartKS'), {
+  type:'bar',
+  data:{
+    labels:Object.keys(DATA.drift),
+    datasets:[{label:'KS Statistic',data:Object.values(DATA.drift).map(d=>d.ks),backgroundColor:[C.red,C.red,C.red,C.red,C.purple],borderRadius:6}]
+  },
+  options:{responsive:true,scales:{y:{grid},x:{grid}},plugins:{legend:{display:false}}}
+});
+
+// ── FEATURE IMPORTANCE ────────────────────────────────────────────
+const fi = DATA.fi;
+const fiSorted = Object.entries(fi).sort((a,b)=>a[1]-b[1]);
+const fiBg = fiSorted.map(([k])=>
+  (k.includes('PAY') || k.includes('DELAY')) ? C.red :
+  (k.includes('BILL') || k.includes('TOTAL')) ? C.blue : C.green);
+
+new Chart(document.getElementById('chartFI'), {
+  type:'bar',
+  data:{
+    labels:fiSorted.map(([k])=>k),
+    datasets:[{label:'Importance',data:fiSorted.map(([,v])=>v),backgroundColor:fiBg,borderRadius:4}]
+  },
+  options:{
+    indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    scales:{x:{grid},y:{grid,ticks:{font:{family:"'JetBrains Mono'",size:11}}}},
+    plugins:{legend:{display:false}}
+  }
+});
+</script>
+</body>
+</html>

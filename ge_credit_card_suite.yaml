@@ -1,0 +1,431 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Great Expectations — Suite de Validation
+#  Projet  : Pipeline de Score de Crédit "Zéro Défaut"
+#  Dataset : UCI Credit Card Default (30 000 clients · Taïwan 2005-2006)
+#  Modèle  : Gradient Boosting | Seuil optimal = 0.13
+#  Usage   : Rejouer avant chaque entraînement ou batch de production
+# ═══════════════════════════════════════════════════════════════════════════
+
+expectation_suite_name: credit_card_zero_defaut
+
+meta:
+  great_expectations_version: "0.15.x"
+  created_by: "Pipeline Zéro Défaut"
+  dataset: "UCI Credit Card Default"
+  modele_retenu: "GradientBoostingClassifier"
+  seuil_optimal: 0.13
+  auc_test: 0.7843
+  recall_test: 0.8312
+  cout_metier_test: 3349
+  description: >
+    Règles de validation automatique du dataset UCI Credit Card.
+    Sévérités : CRITICAL (bloque le pipeline) · HIGH (alerte obligatoire)
+    MEDIUM (journalisation) · LOW (information).
+    Toute violation CRITICAL ou HIGH doit être résolue avant modélisation.
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 1 — STRUCTURE ET VOLUME DU DATASET
+# ═══════════════════════════════════════════════════════════════════════════
+
+expectations:
+
+  - expectation_type: expect_table_columns_to_match_ordered_list
+    kwargs:
+      column_list:
+        - ID
+        - LIMIT_BAL
+        - SEX
+        - EDUCATION
+        - MARRIAGE
+        - AGE
+        - PAY_0
+        - PAY_2
+        - PAY_3
+        - PAY_4
+        - PAY_5
+        - PAY_6
+        - BILL_AMT1
+        - BILL_AMT2
+        - BILL_AMT3
+        - BILL_AMT4
+        - BILL_AMT5
+        - BILL_AMT6
+        - PAY_AMT1
+        - PAY_AMT2
+        - PAY_AMT3
+        - PAY_AMT4
+        - PAY_AMT5
+        - PAY_AMT6
+        - default.payment.next.month
+    meta:
+      severity: CRITICAL
+      description: >
+        Les 25 colonnes doivent être présentes dans le bon ordre.
+        Toute colonne manquante ou renommée bloque le pipeline.
+
+  - expectation_type: expect_table_row_count_to_be_between
+    kwargs:
+      min_value: 1000
+      max_value: 1000000
+    meta:
+      severity: HIGH
+      description: "Volume minimal de 1 000 lignes requis pour un entraînement fiable."
+
+  - expectation_type: expect_table_columns_to_match_set
+    kwargs:
+      column_set:
+        - ID
+        - LIMIT_BAL
+        - SEX
+        - EDUCATION
+        - MARRIAGE
+        - AGE
+        - PAY_0
+        - PAY_2
+        - PAY_3
+        - PAY_4
+        - PAY_5
+        - PAY_6
+        - BILL_AMT1
+        - BILL_AMT2
+        - BILL_AMT3
+        - BILL_AMT4
+        - BILL_AMT5
+        - BILL_AMT6
+        - PAY_AMT1
+        - PAY_AMT2
+        - PAY_AMT3
+        - PAY_AMT4
+        - PAY_AMT5
+        - PAY_AMT6
+        - default.payment.next.month
+      exact_match: true
+    meta:
+      severity: CRITICAL
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 2 — UNICITÉ ET VALEURS MANQUANTES
+# ═══════════════════════════════════════════════════════════════════════════
+
+  - expectation_type: expect_column_values_to_be_unique
+    kwargs:
+      column: ID
+    meta:
+      severity: CRITICAL
+      description: "Chaque client doit avoir un identifiant unique — pas de doublon."
+
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: default.payment.next.month
+      mostly: 1.0
+    meta:
+      severity: CRITICAL
+      description: "La variable cible ne peut jamais être manquante."
+
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: AGE
+      mostly: 1.0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: LIMIT_BAL
+      mostly: 1.0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_not_be_null
+    kwargs:
+      column: SEX
+      mostly: 1.0
+    meta:
+      severity: HIGH
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 3 — RÈGLES MÉTIER PAR COLONNE
+# ═══════════════════════════════════════════════════════════════════════════
+
+  # ── Variable cible ────────────────────────────────────────────────────────
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: default.payment.next.month
+      value_set: [0, 1]
+      mostly: 1.0
+    meta:
+      severity: CRITICAL
+      description: "La variable cible doit être strictement binaire : 0 (non-défaut) ou 1 (défaut)."
+
+  - expectation_type: expect_column_mean_to_be_between
+    kwargs:
+      column: default.payment.next.month
+      min_value: 0.05
+      max_value: 0.50
+    meta:
+      severity: HIGH
+      description: >
+        Alerte drift : le taux de défaut observé est de 22.1% en référence.
+        S'il sort de la plage [5%, 50%], la population cible a probablement changé
+        et le modèle doit être réentraîné.
+
+  # ── AGE : clients majeurs uniquement (règle KYC) ──────────────────────────
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: AGE
+      min_value: 18
+      max_value: 100
+      mostly: 1.0
+    meta:
+      severity: HIGH
+      description: "Règle KYC : seuls les clients majeurs (≥18 ans) sont éligibles au crédit."
+
+  - expectation_type: expect_column_mean_to_be_between
+    kwargs:
+      column: AGE
+      min_value: 20
+      max_value: 60
+    meta:
+      severity: MEDIUM
+      description: "Alerte drift : la moyenne d'âge en référence est 35.5 ans. Hors [20, 60] = vieillissement anormal."
+
+  # ── LIMIT_BAL : plafond de crédit non négatif ─────────────────────────────
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: LIMIT_BAL
+      min_value: 0
+      max_value: 5000000
+      mostly: 1.0
+    meta:
+      severity: HIGH
+      description: "Une limite de crédit ne peut pas être négative ou dépasser 5M NT$."
+
+  - expectation_type: expect_column_median_to_be_between
+    kwargs:
+      column: LIMIT_BAL
+      min_value: 10000
+      max_value: 500000
+    meta:
+      severity: HIGH
+      description: >
+        Alerte drift : médiane de référence = 140 000 NT$.
+        Si elle sort de [10 000, 500 000], la politique de crédit a changé
+        et UTIL_RATIO sera fortement impacté.
+
+  # ── SEX : genre ───────────────────────────────────────────────────────────
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: SEX
+      value_set: [1, 2]
+      mostly: 1.0
+    meta:
+      severity: MEDIUM
+      description: "Valeurs autorisées : 1 = Homme · 2 = Femme."
+
+  # ── EDUCATION : niveau d'éducation ────────────────────────────────────────
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: EDUCATION
+      value_set: [0, 1, 2, 3, 4, 5, 6]
+      mostly: 1.0
+    meta:
+      severity: MEDIUM
+      description: >
+        Valeurs officielles : 1=supérieur · 2=université · 3=lycée · 4=autre.
+        Les codes 0, 5 et 6 sont non documentés dans la source UCI
+        et seront remappés vers 4 (autre) avant modélisation.
+
+  # ── MARRIAGE : statut matrimonial ─────────────────────────────────────────
+  - expectation_type: expect_column_values_to_be_in_set
+    kwargs:
+      column: MARRIAGE
+      value_set: [0, 1, 2, 3]
+      mostly: 1.0
+    meta:
+      severity: LOW
+      description: >
+        Valeurs officielles : 1=marié · 2=célibataire · 3=autre.
+        Le code 0 est non documenté et sera remappé vers 3 (autre).
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 4 — REMBOURSEMENTS (PAY_AMT1 à PAY_AMT6)
+# ═══════════════════════════════════════════════════════════════════════════
+# Un remboursement ne peut pas être négatif — règle métier absolue.
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_AMT1
+      min_value: 0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_AMT2
+      min_value: 0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_AMT3
+      min_value: 0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_AMT4
+      min_value: 0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_AMT5
+      min_value: 0
+    meta:
+      severity: HIGH
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_AMT6
+      min_value: 0
+    meta:
+      severity: HIGH
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 5 — STATUTS DE RETARD (PAY_0 à PAY_6)
+# ═══════════════════════════════════════════════════════════════════════════
+# Échelle UCI : -2=pas de conso · -1=payé en avance · 0=ponctuel · 1..9=mois de retard
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_0
+      min_value: -2
+      max_value: 9
+      mostly: 1.0
+    meta:
+      severity: MEDIUM
+      description: "Mois le plus récent (septembre 2005). Corrélation avec DEFAULT : r=0.32."
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_2
+      min_value: -2
+      max_value: 9
+      mostly: 1.0
+    meta:
+      severity: MEDIUM
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_3
+      min_value: -2
+      max_value: 9
+      mostly: 1.0
+    meta:
+      severity: MEDIUM
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_4
+      min_value: -2
+      max_value: 9
+      mostly: 1.0
+    meta:
+      severity: LOW
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_5
+      min_value: -2
+      max_value: 9
+      mostly: 1.0
+    meta:
+      severity: LOW
+
+  - expectation_type: expect_column_values_to_be_between
+    kwargs:
+      column: PAY_6
+      min_value: -2
+      max_value: 9
+      mostly: 1.0
+    meta:
+      severity: LOW
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 6 — ANTI FUITE DE DONNÉES (Data Leakage)
+# ═══════════════════════════════════════════════════════════════════════════
+# Ces colonnes ne doivent JAMAIS apparaître dans les features d'entraînement.
+
+  - expectation_type: expect_column_to_not_exist
+    kwargs:
+      column: DEFAULT
+    meta:
+      severity: CRITICAL
+      description: >
+        Fuite de données : la variable cible encodée ne doit pas figurer
+        dans les features. Le modèle obtiendrait des performances irréalistes.
+
+  - expectation_type: expect_column_to_not_exist
+    kwargs:
+      column: default_encoded
+    meta:
+      severity: CRITICAL
+
+  - expectation_type: expect_column_to_not_exist
+    kwargs:
+      column: date_of_default
+    meta:
+      severity: CRITICAL
+      description: "Toute date de défaut futur constitue une fuite temporelle."
+
+  - expectation_type: expect_column_to_not_exist
+    kwargs:
+      column: is_defaulter
+    meta:
+      severity: CRITICAL
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SECTION 7 — MONITORING DRIFT (seuils d'alerte production)
+# ═══════════════════════════════════════════════════════════════════════════
+# Ces règles sont appliquées chaque semaine sur les nouvelles données.
+# Si KS p-value < 0.05 sur une feature : rapport automatique.
+# Si 3 features driftent simultanément : gel + audit humain.
+
+drift_monitoring:
+  frequence: hebdomadaire
+  features_surveillees:
+    - LIMIT_BAL
+    - BILL_AMT1
+    - PAY_AMT1
+    - UTIL_RATIO
+  seuils_ks:
+    p_value_alerte: 0.05
+    n_features_gel: 3
+  seuils_psi:
+    surveillance: 0.10
+    drift_majeur: 0.20
+  seuils_performance:
+    auc_minimum: 0.75
+    recall_minimum: 0.70
+    cout_metier_max: 5000
+  actions:
+    auc_sous_seuil: "Réentraînement d'urgence"
+    recall_sous_seuil: "Révision du seuil de décision"
+    drift_ks_detecte: "Rapport drift automatique"
+    drift_3_features: "Gel des décisions automatiques + audit humain"
+    cout_depasse: "Révision des paramètres du modèle"
+  audit_equite:
+    frequence: trimestrielle
+    dimensions: ["SEX", "AGE_GRP"]
+    seuil_fnr_ecart: 0.05
+
